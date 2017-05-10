@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <GL/glew.h>
-#include <SDL2/SDL.h>
+#include "SDL.h"
 #include "lib/dashgl.h"
 
 #define WIDTH 800
@@ -10,10 +10,11 @@
 GLuint program;
 GLint attribute_coord3d, attribute_v_color;
 GLuint vbo_cube_vertices, ibo_cube_elements;
-GLint uniform_lookat, uniform_m_transform;
+GLint uniform_perspective, uniform_lookat, uniform_mvp;
 
 bool init_resources();
 void render(SDL_Window*);
+void logic();
 void free_resources();
 void main_loop(SDL_Window*);
 
@@ -142,9 +143,9 @@ bool init_resources() {
 		return false;
 	}
 
-	const char *uniform_name = "m_transform";
-	uniform_m_transform = glGetUniformLocation(program, uniform_name);
-	if(uniform_m_transform == -1) {
+	const char *uniform_name = "mvp";
+	uniform_mvp = glGetUniformLocation(program, uniform_name);
+	if(uniform_mvp == -1) {
 		fprintf(stderr, "Could not bind uniform %s\n", uniform_name);
 		return false;
 	}
@@ -156,126 +157,111 @@ bool init_resources() {
 		return false;
 	}
 
+	uniform_name = "perspective";
+	uniform_perspective = glGetUniformLocation(program, uniform_name);
+	if (uniform_perspective == -1) {
+		fprintf(stderr, "Could not bind uniform: %s\n", uniform_name);
+		return false;
+	}
+
 	glUseProgram(program);
 	glClearColor(1.0, 1.0, 1.0, 1.0);
 	
-	mat4 perspective, lookat, link;
-	
-	/*
 	vec3 eye = { 0.0f, 2.0f, 0.0f };
 	vec3 target = { 0.0f, 0.0f, -4.0f };
 	vec3 axis = { 0.0f, 1.0f, 0.0f };
-	
-	mat4_perspective(45.0f, 1.0f*WIDTH/HEIGHT, 0.1f, 100.0f, perspective);
-	mat4_look_at(eye, target, axis, lookat);
-	mat4_multiply(perspective, lookat, link);
-	*/
 
-	mat4_identity(link);
-	glUniformMatrix4fv(uniform_lookat, 1, GL_FALSE, link);
+	mat4 projection, view;
+	mat4_perspective(45.0f, 1.0f*WIDTH/HEIGHT, 0.1f, 10.0f, projection);
+	mat4_look_at(eye, target, axis, view);
+
+	glUniformMatrix4fv(uniform_perspective, 1, GL_FALSE, projection);
+	glUniformMatrix4fv(uniform_lookat, 1, GL_FALSE, view);
 
 	return true;
 
 }
 
+void logic() {
+	
+	float angle = SDL_GetTicks() / 1000.0;
+
+	mat4 mvp, pos, rot;
+
+	vec3 t = { 0.0, 0.0, -4.0f };
+	mat4_translate(t, pos);
+	mat4_rotate_y(angle, rot);
+
+	mat4_identity(mvp);
+	mat4_multiply(mvp, pos, mvp);
+	mat4_multiply(mvp, rot, mvp);
+
+	glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, mvp);
+
+}
+
 void render(SDL_Window *window) {
 	
-	int size;
+    int size;
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
-	glClear(GL_COLOR_BUFFER_BIT);
-	
-	glEnableVertexAttribArray(attribute_coord3d);
-	glEnableVertexAttribArray(attribute_v_color);
+    glEnableVertexAttribArray(attribute_coord3d);
+    glEnableVertexAttribArray(attribute_v_color);
 
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_vertices);
-	glVertexAttribPointer(
-		attribute_coord3d,
-		3,
-		GL_FLOAT,
-		GL_FALSE,
-		sizeof(float) * 6,
-		0
-	);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_vertices);
 
-	glVertexAttribPointer(
-		attribute_v_color,
-		3,
-		GL_FLOAT,
-		GL_FALSE,
-		sizeof(float) * 6,
-		(void*)(sizeof(float) * 3)
-	);
+    glVertexAttribPointer(
+        attribute_coord3d,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(float)*6,
+        0
+    );
 
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_cube_elements);
-	glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-	glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
+    glVertexAttribPointer(
+        attribute_v_color,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(float)*6,
+        (void*)(sizeof(float) * 3)
+    );
 
-	glDisableVertexAttribArray(attribute_coord3d);
-	glDisableVertexAttribArray(attribute_v_color);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_cube_elements);
+    glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+    glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
 
-	SDL_GL_SwapWindow(window);
+    glDisableVertexAttribArray(attribute_coord3d);
+    glDisableVertexAttribArray(attribute_v_color);
+    SDL_GL_SwapWindow(window);
 
 }
 
 void free_resources() {
 	
-	glDeleteProgram(program);
-	glDeleteBuffers(1, &vbo_cube_vertices);
+    glDeleteProgram(program);
+    glDeleteBuffers(1, &vbo_cube_vertices);
+    glDeleteBuffers(1, &ibo_cube_elements);
 
 }
 
 void main_loop(SDL_Window *window) {
 
-	while(true) {
+    while (true) {
 
-		SDL_Event ev;
-		
-		while(SDL_PollEvent(&ev)) {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev)) {
 
-			if(ev.type == SDL_QUIT) {
-				return;
-			}
+            if (ev.type == SDL_QUIT) {
+                return;
+            }
 
-		}
-		
-		float angle = SDL_GetTicks() / 1000.0 * 45.0f;; 
-		
-		float rad = angle * M_PI / 180.0;
+        }
 
-	vec3 eye = { 0.0f, 2.0f, 0.0f };
-	vec3 target = { 0.0f, 0.0f, -4.0f };
-	vec3 axis = { 0.0f, 1.0f, 0.0f };
-	vec3 t = { 0.0, 0.0, -4.0f };
-
-	mat4 mvp, pos, rot, projection, view;
-	mat4_identity(mvp);
-	mat4_perspective(45.0f, 1.0f*WIDTH/HEIGHT, 0.1f, 10.0f, projection);
-	mat4_look_at(eye, target, axis, view);
-	mat4_translate(t, pos);
-	mat4_rotate_y(rad, rot);
-
-	mat4_multiply(mvp, projection, mvp);
-	mat4_multiply(mvp, view, mvp);
-	mat4_multiply(mvp, pos, mvp);
-	mat4_multiply(mvp, rot, mvp);
-
-	glUseProgram(program);
-	glUniformMatrix4fv(uniform_m_transform, 1, GL_FALSE, mvp);
-
-		/*
-		vec3 pos = { 0.0, 0.0 -4.0 };
-		vec3 rot = { 0.0, angle, 0.0 };
-
-		mat4 mvp, m_pos, m_rot;
-		mat4_rotate(rot, m_rot);
-		mat4_translate(pos, m_pos);
-		mat4_multiply(m_pos, m_rot, mvp);
-
-		glUniformMatrix4fv(uniform_m_transform, 1, GL_FALSE, mvp);
-		*/
-
-		render(window);
-	}
+        logic();
+        render(window);
+    }
 
 }
 

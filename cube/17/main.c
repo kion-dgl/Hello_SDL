@@ -1,16 +1,12 @@
-/**
- * From the OpenGL Programming wikibook: http://en.wikibooks.org/wiki/OpenGL_Programming
- * This file is in the public domain.
- * Contributors: Sylvain Beucler
- */
-
 #include <stdio.h>
 #include <stdbool.h>
 #include <GL/glew.h>
 #include "SDL.h"
 #include "lib/dashgl.h"
 
-int screen_width=800, screen_height=600;
+#define WIDTH 800
+#define HEIGHT 600
+
 GLuint vbo_cube_vertices;
 GLuint ibo_cube_elements;
 GLuint program;
@@ -20,7 +16,6 @@ GLint uniform_perspective, uniform_lookat, uniform_mvp;
 bool init_resources();
 void logic();
 void render(SDL_Window* window);
-void onResize(int width, int height);
 void free_resources();
 void mainLoop(SDL_Window* window);
 
@@ -31,8 +26,8 @@ int main(int argc, char* argv[]) {
 		"My Rotating Cube",
 		SDL_WINDOWPOS_CENTERED, 
 		SDL_WINDOWPOS_CENTERED,
-		screen_width, 
-		screen_height,
+		WIDTH, 
+		HEIGHT,
 		SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL
 	);
 
@@ -168,7 +163,7 @@ bool init_resources() {
 	vec3 axis = { 0.0f, 1.0f, 0.0f };
 
 	mat4 projection, view;
-	mat4_perspective(45.0f, 1.0f*screen_width/screen_height, 0.1f, 10.0f, projection);
+	mat4_perspective(45.0f, 1.0f*WIDTH/HEIGHT, 0.1f, 10.0f, projection);
 	mat4_look_at(eye, target, axis, view);
 
 	glUniformMatrix4fv(uniform_perspective, 1, GL_FALSE, projection);
@@ -234,14 +229,6 @@ void render(SDL_Window* window) {
 
 }
 
-void onResize(int width, int height) {
-
-	screen_width = width;
-	screen_height = height;
-	glViewport(0, 0, screen_width, screen_height);
-
-}
-
 void free_resources() {
 
 	glDeleteProgram(program);
@@ -259,10 +246,6 @@ void mainLoop(SDL_Window* window) {
 			
 			if (ev.type == SDL_QUIT) {
 				return;
-			}
-
-			if (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-				onResize(ev.window.data1, ev.window.data2);
 			}
 
 		}
